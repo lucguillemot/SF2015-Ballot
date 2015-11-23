@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style type="text/css">
+  
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9px;
+    dominant-baseline:central;
+    text-anchor:middle;
+  }
+
+  .hoods {
+    fill:none;
+    stroke-width:.3px;
+    stroke:#fff;
+  }
+
+</style>
+<body>
+<script src="//d3js.org/d3.v3.min.js"></script>
+<script src="//d3js.org/queue.v1.min.js"></script>
+<script src="//d3js.org/topojson.v1.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script>
+$(function(){
+  var width = 660,
+      height = 450,
+      legend_width = 200,
+      divisions = 100;
+
+  var svg = d3.select("body").append("svg").attr("width", width).attr("height", height),
+      legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,405)");
+
+  var projection = d3.geo.mercator()
+        .center([-122.3871, 37.7729])
+        .scale(140000)
+        .translate([width/2, height/2]);
+
+  var col_range_low = "#f7f7f7",
+      col_range_high = "#2d004b";
+
+  var path = d3.geo.path().projection(projection);
+
+  queue()
+      .defer(d3.json, "../geo/SFprecincts.json")
+      .defer(d3.json, "../geo/SFhoods.json")
+      .defer(d3.csv, "../data/propI.csv")
+      .await(ready);
+
+  function ready(error, map, hoods, data) {
+    var PYesById = {};
+
+    data.forEach(function(d) {
+        PYesById[d.PrecinctID] = +d.PYes;
+    });
+
+    var range_low = d3.min(data, function(d){return d.PYes;}),
+        range_high= d3.max(data, function(d){return d.PYes});
+
+    var color = d3.scale.linear()
+        .range([col_range_low, col_range_high])
+        .domain([range_low,range_high])
+        .interpolate(d3.interpolateLab);
+
+    svg.append("g")
+        .attr("class", "precinct")
+        .selectAll("path")
+        .data(topojson.feature(map, map.objects.precincts).features)
+        .enter().append("path")
+        .attr("id", function(d){return PYesById[d.properties.Pid];})
+        .attr("d", path)
+        .style("fill", function(d) {
+          return color(PYesById[d.properties.Pid]); 
+        });
+
+    svg.append("g")
+        .attr("class", "hoods")
+        .selectAll("path")
+        .data(topojson.feature(hoods, hoods.objects.hoods).features)
+        .enter().append("path")
+        .attr("d", path);
+
+    // LEGEND //////////////////////////////////////////
+    var newData = [];
+    var sectionWidth = Math.floor(legend_width / divisions);
+
+    for (var i=0; i < legend_width; i+= sectionWidth ) {
+        newData.push(i);
+    }
+
+    var colorScaleLin = d3.scale.linear()
+          .domain([0, newData.length-1])
+          .interpolate(d3.interpolateLab)
+          .range([col_range_low, col_range_high]);
+
+    legend.selectAll('rect')
+        .data(newData)
+        .enter()
+        .append('rect')
+            .attr("x", function(d) { return d; })
+            .attr("y", 10)
+            .attr("height", 10)
+            .attr("width", sectionWidth)
+            .attr('fill', function(d, i) { return colorScaleLin(i)});
+
+    legend.append("text").text(function(){return (range_low*100).toFixed(1) + "%";}).attr("transform","translate(0,0)");
+    legend.append("text").text(function(){return (range_high*100).toFixed(1) + "%";}).attr("transform","translate("+(legend_width)+",0)");
+  };
+});
+
+</script>
+</body>
+</html>
