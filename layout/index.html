@@ -15,6 +15,15 @@
     stroke:#fff;
   }
 
+  .propSelection > text {
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .PrctDistCircle {
+    fill-opacity:.2;
+  }
+
 </style>
 <body>
 <script src="//d3js.org/d3.v3.min.js"></script>
@@ -26,7 +35,8 @@ $(function(){
   var width = 660,
       height = 450,
       legend_width = 200,
-      divisions = 100;
+      divisions = 100,
+      SelectedBallot = "J";
 
   var svg = d3.select("body").append("svg").attr("width", width).attr("height", height),
       legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,405)"),
@@ -46,7 +56,7 @@ $(function(){
   queue()
       .defer(d3.json, "../geo/SFprecincts.json")
       .defer(d3.json, "../geo/SFhoods.json")
-      .defer(d3.csv, "../data/propJ.csv")
+      .defer(d3.csv, "../data/prop"+SelectedBallot+".csv")
       .await(ready);
 
   function ready(error, map, hoods, data) {
@@ -55,7 +65,7 @@ $(function(){
 
     data.forEach(function(d) {
         PercById[d.PrecinctID] = +d.Perc;
-        WinnerById[d.PrecinctID]=d.Win
+        WinnerById[d.PrecinctID]=d.Win;
     });
 
     // I use the same maximum value for 'Yes' and 'No' to have an equal color scale on both sides
@@ -75,7 +85,6 @@ $(function(){
         .selectAll("path")
         .data(topojson.feature(map, map.objects.precincts).features)
         .enter().append("path")
-        .attr("id", function(d){return PercById[d.properties.Pid];})
         .attr("d", path)
         .style("fill", function(d) {
           if (WinnerById[d.properties.Pid]=="Yes"){
@@ -109,9 +118,13 @@ $(function(){
           .domain([fakeData.length-1,0])
           .interpolate(d3.interpolateLab)
           .range([EqualColor, NoColorMin]);
+    var PrctDistScale = d3.scale.linear()
+          .domain([0.5,YesNoMax])
+          .range([0,legend_width/2]);
 
     var YesLegend = legend.append("g").attr("class", "YesLegend").attr("transform", "translate("+(legend_width/2)+",0)"),
-        NoLegend = legend.append("g").attr("class", "NoLegend");
+        NoLegend = legend.append("g").attr("class", "NoLegend"),
+        PrctDist = legend.append("g").attr("class", "NoLegend"); // Chart with the distribution of precincts.
 
     YesLegend.selectAll("rect")
         .data(fakeData)
@@ -133,9 +146,105 @@ $(function(){
             .attr("width", rectWidth)
             .attr("fill", function(d, i) { return NoColorScaleLegend(i)});
 
-    legend.append("text").text(function(){return (0.5*100).toFixed(0) + "%";}).attr("transform","translate("+(legend_width/2)+",30)");
-    legend.append("text").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate(0,30)");
-    legend.append("text").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate("+(legend_width)+",30)");
+    legend.append("text").text("YES").attr("transform", "translate("+(legend_width/2+25)+",-10)");
+    legend.append("text").text("NO").attr("transform", "translate("+(legend_width/2-25)+",-10)");
+    legend.append("text").text(function(){return (0.5*100).toFixed(0);}).attr("transform","translate("+(legend_width/2)+",30)");
+    legend.append("text").attr("class", "YesNoMax1").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate(0,30)");
+    legend.append("text").attr("class", "YesNoMax2").text(function(){return (YesNoMax*100).toFixed(0)+"%";}).attr("transform","translate("+(legend_width)+",30)");
+
+     PrctDist.selectAll("circle")
+        .data(data)
+        .enter()
+        .append("circle")
+            .attr("class", "PrctDistCircle")
+            .attr("cx",function(d){
+                if (d.Win=="Yes"){
+                  return legend_width/2+PrctDistScale(d.Perc); 
+                }
+                else {
+                  return legend_width/2-PrctDistScale(d.Perc); 
+                }
+            })
+            .attr("cy",0)
+            .attr("r", 2)
+            .style("fill", function(d){
+                if (d.Win=="Yes"){
+                  return YesColor(d.Perc); 
+                }
+                else {
+                  return NoColor(d.Perc); 
+                }
+            });
+  };
+
+  function update_map(propLetter) {    
+      queue()
+          .defer(d3.json, "../geo/SFprecincts.json")
+          .defer(d3.json, "../geo/SFhoods.json")
+          .defer(d3.csv, "../data/prop"+propLetter+".csv")
+          .await(readyTransition);
+  };
+
+  function readyTransition(error, map, hoods, data) {
+    var PercById = {},
+        WinnerById = {};
+
+    data.forEach(function(d) {
+        PercById[d.PrecinctID] = +d.Perc;
+        WinnerById[d.PrecinctID]=d.Win;
+    });
+
+    var YesNoMax = d3.max(data, function(d){return d.Perc;});
+
+    var YesColor = d3.scale.linear()
+        .range([EqualColor, YesColorMax])
+        .domain([0.5,YesNoMax])
+        .interpolate(d3.interpolateLab);
+    var NoColor = d3.scale.linear()
+        .range([EqualColor, NoColorMin])
+        .domain([0.5,YesNoMax])
+        .interpolate(d3.interpolateLab);
+    var PrctDistScale = d3.scale.linear()
+          .domain([0.5,YesNoMax])
+          .range([0,legend_width/2]);
+
+    svg.selectAll("path")
+        .data(topojson.feature(map, map.objects.precincts).features)
+        .transition()
+        .duration(100)
+        //.attr("d", path)
+        .style("fill", function(d) {
+          if (WinnerById[d.properties.Pid]=="Yes"){
+            return YesColor(PercById[d.properties.Pid]); 
+          }
+          else {
+            return NoColor(PercById[d.properties.Pid]); 
+          }
+        });
+    // LEGEND UPDATE //////////////////////////////////////////////
+    legend.select(".YesNoMax1").text(function(){return (YesNoMax*100).toFixed(0);});
+    legend.select(".YesNoMax2").text(function(){return (YesNoMax*100).toFixed(0)+"%";});
+
+    svg.selectAll(".PrctDistCircle")
+        .data(data)
+        .transition()
+        .duration(100)
+            .attr("cx",function(d){
+                if (d.Win=="Yes"){
+                  return legend_width/2+PrctDistScale(d.Perc); 
+                }
+                else {
+                  return legend_width/2-PrctDistScale(d.Perc); 
+                }
+            })
+            .style("fill", function(d){
+                if (d.Win=="Yes"){
+                  return YesColor(d.Perc); 
+                }
+                else {
+                  return NoColor(d.Perc); 
+                }
+            });
   };
 
   // Proposition selection
@@ -149,7 +258,10 @@ $(function(){
       .attr("x", function(d,i){return 15*i;})
       .attr("y", 10)
       .text(function(d,i){return d;})
-      .attr("transform", "translate(30,0)");
+      .attr("transform", "translate(30,0)")
+        .on("click", function(d){
+          update_map(d);
+        });
 
 });
 
