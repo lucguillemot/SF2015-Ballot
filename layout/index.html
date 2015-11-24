@@ -1,12 +1,39 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style type="text/css">
-  
+  @font-face {
+    font-family: 'cmu_typewriter_textregular';
+    src: url('css/font/cmuntt-webfont.eot');
+    src: url('css/font/cmuntt-webfont.eot?#iefix') format('embedded-opentype'),
+         url('css/font/cmuntt-webfont.woff2') format('woff2'),
+         url('css/font/cmuntt-webfont.woff') format('woff'),
+         url('css/font/cmuntt-webfont.ttf') format('truetype'),
+         url('css/font/cmuntt-webfont.svg#cmu_typewriter_textregular') format('svg');
+    font-weight: normal;
+    font-style: normal;
+  }
   body {
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: 9px;
-    dominant-baseline:central;
-    text-anchor:middle;
+    font-family: "cmu_typewriter_textregular";
+    font-size: 12px;
+  }
+
+  svg {
+    position: fixed;
+  }
+
+  .ballotDescription {
+    position:fixed;
+    width: 200px;
+    top:110px;
+    left:438px;
+    font-size: 16px;
+  }
+  .sources {
+    position:fixed;
+    width: 200px;
+    top:410px;
+    left:438px;
+    font-size: 10px;
   }
 
   .hoods {
@@ -14,14 +41,23 @@
     stroke-width:.3px;
     stroke:#fff;
   }
+  .legend > text {
+    dominant-baseline:central;
+    text-anchor:middle;
+  }
 
   .propSelection > text {
     font-size: 15px;
     cursor: pointer;
   }
+  .propSelection > text:hover {
+    fill:#a7a7a7;
+  }
 
   .PrctDistCircle {
     fill-opacity:.2;
+   /* stroke:#000;
+    stroke-width:.1px;*/
   }
 
 </style>
@@ -36,20 +72,23 @@ $(function(){
       height = 450,
       legend_width = 200,
       divisions = 100,
-      SelectedBallot = "J";
+      SelectedBallot = "A",
+      ballotsDescr = {"A":"<b>Proposition A:</b> </br>City of San Francisco Housing Bond Issue","B":"<b>Proposition B:</b> </br>City of San Francisco Paid Parental Leave for City Employees","C":"<b>Proposition C:</b> </br>City of San Francisco Registration Fee and Monthly Reports for Expenditure Lobbyists","D":"<b>Proposition D:</b> </br>City of San Francisco Mission Rock Development Initiative","E":"<b>Proposition E:</b> </br>City of San Francisco Requirements For Public Meetings of Local Policy Bodies Initiative","F":"<b>Proposition F:</b> </br>City of San Francisco Initiative to Restrict Short-Term Rentals","G":"<b>Proposition G:</b> </br>City of San Francisco \"Disclosures Regarding Renewable Energy\" Initiative","H":"<b>Proposition H:</b> </br>City of San Francisco Referred Measure Defining \"Clean, Green and Renewable Energy\"","I":"<b>Proposition I:</b> </br>City of San Francisco Mission District Housing Moratorium Initiative","J":"<b>Proposition J:</b> </br>City of San Francisco Legacy Business Historic Preservation Fund","K":"<b>Proposition K:</b> </br>City of San Francisco Housing Development on Surplus Public Lands"};
 
   var svg = d3.select("body").append("svg").attr("width", width).attr("height", height),
-      legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,405)"),
+      legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,300)"),
       prop = svg.append("g").attr("class", "propSelection").attr("transform", "translate(430,30)");
-
  var projection = d3.geo.mercator()
         .center([-122.3871, 37.7729])
         .scale(140000)
         .translate([width/2, height/2]);
 
+  // var EqualColor = "#f7f7f7",
+  //     YesColorMax = "#2d004b",
+  //     NoColorMin = "#673006";
   var EqualColor = "#f7f7f7",
-      YesColorMax = "#2d004b",
-      NoColorMin = "#673006";
+      YesColorMax = "#276419",
+      NoColorMin = "#8e0152";
 
   var path = d3.geo.path().projection(projection);
 
@@ -146,13 +185,16 @@ $(function(){
             .attr("width", rectWidth)
             .attr("fill", function(d, i) { return NoColorScaleLegend(i)});
 
-    legend.append("text").text("YES").attr("transform", "translate("+(legend_width/2+25)+",-10)");
-    legend.append("text").text("NO").attr("transform", "translate("+(legend_width/2-25)+",-10)");
+    legend.append("text").text("YES").attr("transform", "translate("+(legend_width)+",-13)");
+    legend.append("text").text("NO").attr("transform", "translate(0,-10)");
     legend.append("text").text(function(){return (0.5*100).toFixed(0);}).attr("transform","translate("+(legend_width/2)+",30)");
     legend.append("text").attr("class", "YesNoMax1").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate(0,30)");
     legend.append("text").attr("class", "YesNoMax2").text(function(){return (YesNoMax*100).toFixed(0)+"%";}).attr("transform","translate("+(legend_width)+",30)");
 
-     PrctDist.selectAll("circle")
+    
+
+    // Distribution chart
+    PrctDist.selectAll("circle")
         .data(data)
         .enter()
         .append("circle")
@@ -248,23 +290,31 @@ $(function(){
   };
 
   // Proposition selection
+  function updateDescr(ballot) {
+    $(".ballotDescription").html(ballotsDescr[ballot]);
+  }
   var ballots = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
   var ballotWidth = Math.floor(legend_width/ballots.length);
 
+  svg.append("text")
+    .text("Select a proposition:")
+    .attr("transform", "translate(430,75)");
   prop.selectAll("text")
     .data(ballots)
     .enter()
     .append("text")
-      .attr("x", function(d,i){return 15*i;})
-      .attr("y", 10)
+      .attr("x", function(d,i){return 17*i;})
+      .attr("y", 70)
       .text(function(d,i){return d;})
-      .attr("transform", "translate(30,0)")
         .on("click", function(d){
           update_map(d);
+          updateDescr(d);
         });
 
 });
 
 </script>
 </body>
+<p class="ballotDescription"><b>Proposition A:</b> </br>City of San Francisco Housing Bond Issue<p>
+<p class="sources"><b>Source: </b><a href="http://www.sfelections.org/results/20151103/">sfelections.org</a><p>
 </html>
