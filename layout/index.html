@@ -29,37 +29,45 @@ $(function(){
       divisions = 100;
 
   var svg = d3.select("body").append("svg").attr("width", width).attr("height", height),
-      legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,405)");
+      legend = svg.append("g").attr("class", "legend").attr("transform", "translate(430,405)"),
+      prop = svg.append("g").attr("class", "propSelection").attr("transform", "translate(430,30)");
 
-  var projection = d3.geo.mercator()
+ var projection = d3.geo.mercator()
         .center([-122.3871, 37.7729])
         .scale(140000)
         .translate([width/2, height/2]);
 
-  var col_range_low = "#f7f7f7",
-      col_range_high = "#2d004b";
+  var EqualColor = "#f7f7f7",
+      YesColorMax = "#2d004b",
+      NoColorMin = "#673006";
 
   var path = d3.geo.path().projection(projection);
 
   queue()
       .defer(d3.json, "../geo/SFprecincts.json")
       .defer(d3.json, "../geo/SFhoods.json")
-      .defer(d3.csv, "../data/propI.csv")
+      .defer(d3.csv, "../data/propJ.csv")
       .await(ready);
 
   function ready(error, map, hoods, data) {
-    var PYesById = {};
+    var PercById = {},
+        WinnerById = {};
 
     data.forEach(function(d) {
-        PYesById[d.PrecinctID] = +d.PYes;
+        PercById[d.PrecinctID] = +d.Perc;
+        WinnerById[d.PrecinctID]=d.Win
     });
 
-    var range_low = d3.min(data, function(d){return d.PYes;}),
-        range_high= d3.max(data, function(d){return d.PYes});
+    // I use the same maximum value for 'Yes' and 'No' to have an equal color scale on both sides
+    var YesNoMax = d3.max(data, function(d){return d.Perc;});
 
-    var color = d3.scale.linear()
-        .range([col_range_low, col_range_high])
-        .domain([range_low,range_high])
+    var YesColor = d3.scale.linear()
+        .range([EqualColor, YesColorMax])
+        .domain([0.5,YesNoMax])
+        .interpolate(d3.interpolateLab);
+    var NoColor = d3.scale.linear()
+        .range([EqualColor, NoColorMin])
+        .domain([0.5,YesNoMax])
         .interpolate(d3.interpolateLab);
 
     svg.append("g")
@@ -67,10 +75,15 @@ $(function(){
         .selectAll("path")
         .data(topojson.feature(map, map.objects.precincts).features)
         .enter().append("path")
-        .attr("id", function(d){return PYesById[d.properties.Pid];})
+        .attr("id", function(d){return PercById[d.properties.Pid];})
         .attr("d", path)
         .style("fill", function(d) {
-          return color(PYesById[d.properties.Pid]); 
+          if (WinnerById[d.properties.Pid]=="Yes"){
+            return YesColor(PercById[d.properties.Pid]); 
+          }
+          else {
+            return NoColor(PercById[d.properties.Pid]); 
+          }
         });
 
     svg.append("g")
@@ -80,32 +93,64 @@ $(function(){
         .enter().append("path")
         .attr("d", path);
 
-    // LEGEND //////////////////////////////////////////
-    var newData = [];
-    var sectionWidth = Math.floor(legend_width / divisions);
+    // LEGEND //////////////////////////////////////////////
+    var fakeData = [];
+    var rectWidth = Math.floor(legend_width / divisions);
 
-    for (var i=0; i < legend_width; i+= sectionWidth ) {
-        newData.push(i);
+    for (var i=0; i < legend_width/2; i+= rectWidth ) {
+        fakeData.push(i);
     }
 
-    var colorScaleLin = d3.scale.linear()
-          .domain([0, newData.length-1])
+    var YesColorScaleLegend = d3.scale.linear()
+          .domain([0, fakeData.length-1])
           .interpolate(d3.interpolateLab)
-          .range([col_range_low, col_range_high]);
+          .range([EqualColor, YesColorMax]);
+    var NoColorScaleLegend = d3.scale.linear()
+          .domain([fakeData.length-1,0])
+          .interpolate(d3.interpolateLab)
+          .range([EqualColor, NoColorMin]);
 
-    legend.selectAll('rect')
-        .data(newData)
+    var YesLegend = legend.append("g").attr("class", "YesLegend").attr("transform", "translate("+(legend_width/2)+",0)"),
+        NoLegend = legend.append("g").attr("class", "NoLegend");
+
+    YesLegend.selectAll("rect")
+        .data(fakeData)
         .enter()
-        .append('rect')
+        .append("rect")
             .attr("x", function(d) { return d; })
             .attr("y", 10)
             .attr("height", 10)
-            .attr("width", sectionWidth)
-            .attr('fill', function(d, i) { return colorScaleLin(i)});
+            .attr("width", rectWidth)
+            .attr("fill", function(d, i) { return YesColorScaleLegend(i)});
+    
+    NoLegend.selectAll("rect")
+        .data(fakeData)
+        .enter()
+        .append("rect")
+            .attr("x", function(d) { return d; })
+            .attr("y", 10)
+            .attr("height", 10)
+            .attr("width", rectWidth)
+            .attr("fill", function(d, i) { return NoColorScaleLegend(i)});
 
-    legend.append("text").text(function(){return (range_low*100).toFixed(1) + "%";}).attr("transform","translate(0,0)");
-    legend.append("text").text(function(){return (range_high*100).toFixed(1) + "%";}).attr("transform","translate("+(legend_width)+",0)");
+    legend.append("text").text(function(){return (0.5*100).toFixed(0) + "%";}).attr("transform","translate("+(legend_width/2)+",30)");
+    legend.append("text").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate(0,30)");
+    legend.append("text").text(function(){return (YesNoMax*100).toFixed(0);}).attr("transform","translate("+(legend_width)+",30)");
   };
+
+  // Proposition selection
+  var ballots = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"];
+  var ballotWidth = Math.floor(legend_width/ballots.length);
+
+  prop.selectAll("text")
+    .data(ballots)
+    .enter()
+    .append("text")
+      .attr("x", function(d,i){return 15*i;})
+      .attr("y", 10)
+      .text(function(d,i){return d;})
+      .attr("transform", "translate(30,0)");
+
 });
 
 </script>
